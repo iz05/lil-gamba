@@ -1,6 +1,6 @@
-## mamba-tiny
+## lil-gamba
 
-Tiny implementation of Mamba in PyTorch.
+Tiny implementation of Mamba in PyTorch with exponential backoff.
 
 Featuring:
 * Equivalent numerical output as official implementation for both forward and backward pass
