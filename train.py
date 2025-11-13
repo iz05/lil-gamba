@@ -7,6 +7,9 @@ from torch.utils.data import Dataset, DataLoader
 from tqdm import tqdm
 from transformers import AutoTokenizer
 from model import Mamba, ModelArgs
+import time
+import matplotlib.pyplot as plt
+
 
 # ---------------------------
 # 1. Config
@@ -61,15 +64,19 @@ vocab_size = model.args.vocab_size  # padded vocab size
 optimizer = torch.optim.AdamW(model.parameters(), lr=LR)
 
 # TODO add tracker for losses
+losses = []
 # TODO add speed tracker for training
+time_per_epoch = []
 
 # ---------------------------
 # 4. Training loop
 # ---------------------------
 for epoch in range(1, EPOCHS+1):
+    train_start_time = time.time()
     model.train()
     pbar = tqdm(loader, desc=f"Epoch {epoch}/{EPOCHS}")
     total_loss = 0.0
+    time_per_epoch.append(time.time() - train_start_time)
     for x, y in pbar:
         x, y = x.to(DEVICE), y.to(DEVICE)
         optimizer.zero_grad()
@@ -81,6 +88,7 @@ for epoch in range(1, EPOCHS+1):
         total_loss += loss.item()
         pbar.set_postfix(loss=total_loss/(pbar.n+1))
 
+    losses.append(total_loss / len(loader))
     # ---------------------------
     # 5. Sanity check text generation
     # ---------------------------
@@ -97,7 +105,25 @@ for epoch in range(1, EPOCHS+1):
             print(f"\n=== Sample Generated Text ===\n{generated}\n============================\n")
 
 # TODO: produce loss plots
-# YOUR CODE HERE
+fig, axes = plt.subplots(1, 2, figsize=(14, 5))  # 1 row, 2 columns
+
+# Plot 1: Training loss
+axes[0].plot(range(1, EPOCHS + 1), losses, label='Training loss over time', color='tab:blue')
+axes[0].set_xlabel('Epoch')
+axes[0].set_ylabel('Average loss per batch')
+axes[0].set_title('Training Loss Over Time')
+axes[0].legend()
+
+# Plot 2: Time per epoch
+axes[1].plot(range(1, EPOCHS + 1), time_per_epoch, label='Time to train per epoch', color='tab:orange')
+axes[1].set_xlabel('Epoch')
+axes[1].set_ylabel('Time to train')
+axes[1].set_title('Time to Train per Epoch')
+axes[1].legend()
+
+plt.tight_layout()
+plt.show()
+
 
 # ---------------------------
 # 6. Save model
