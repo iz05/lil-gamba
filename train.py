@@ -111,4 +111,4 @@ for epoch in range(1, EPOCHS+1):
 # 6. Save model
 # ---------------------------
 os.makedirs("checkpoints", exist_ok=True)
-torch.save(model.state_dict(), f"checkpoints/{MODEL_NAME}_tiny.pt")
+torch.save({'model_args': model.args, 'model_state_dict': model.state_dict()}, f"checkpoints/{MODEL_NAME}_tiny.pt")

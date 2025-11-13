@@ -13,26 +13,17 @@ from model import Mamba, ModelArgs
 
 # TODO: check this implementation
 
-"""
-def load_model(path, device):
-    ### Load a trained Lil'Gamba model from disk. ###
-    checkpoint = torch.load(path, map_location=device)
-    args = ModelArgs(**checkpoint['model_args'])
-    model = Mamba(args).to(device)
-    model.load_state_dict(checkpoint['model_state_dict'])
-    model.eval()
-    return model
-"""
-
 def load_model(path, device, tokenizer):
     """Load a trained Lil'Gamba model from disk."""
+    import torch.serialization # Import torch.serialization
+    torch.serialization.add_safe_globals([ModelArgs]) # Add ModelArgs to safe globals
     checkpoint = torch.load(path, map_location=device)
 
-    # args = ModelArgs(**checkpoint['model_args'])
+    # args = ModelArgs(d_model=64, n_layer=2, vocab_size=len(tokenizer), d_state=16)
+    args = checkpoint['model_args']
 
-    args = ModelArgs(d_model=64, n_layer=2, vocab_size=len(tokenizer), d_state=16)
     model = Mamba(args).to(device)
-    model.load_state_dict(checkpoint)
+    model.load_state_dict(checkpoint['model_state_dict'])
     model.eval()
     return model
 
