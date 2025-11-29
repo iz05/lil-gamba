@@ -10,7 +10,7 @@ from model import Mamba, ModelArgs
 import time
 import matplotlib.pyplot as plt
 
-from lilgamba2 import LilGamba, GambaArgs
+from lilgamba3 import LilGamba, GambaArgs
 
 # ---------------------------
 # 1. Config
@@ -59,13 +59,13 @@ loader = DataLoader(dataset, batch_size=BATCH_SIZE, shuffle=True)
 # ---------------------------
 # Use padded vocab size from ModelArgs
 
-MODEL_NAME = "mamba"
-args = ModelArgs(d_model=64, n_layer=2, vocab_size=len(tokenizer), d_state=16)
-model = Mamba(args).to(DEVICE)
+# MODEL_NAME = "mamba"
+# args = ModelArgs(d_model=64, n_layer=2, vocab_size=len(tokenizer), d_state=16)
+# model = Mamba(args).to(DEVICE)
 
-#MODEL_NAME = "lilgamba"  # or "Mamba"
-#args = GambaArgs(d_model=64, n_layer=2, vocab_size=len(tokenizer), d_state=16, num_gamba=4, decay_rate=0.7)
-#model = LilGamba(args).to(DEVICE)
+MODEL_NAME = "lilgamba"  # or "Mamba"
+args = GambaArgs(d_model=64, n_layer=2, vocab_size=len(tokenizer), d_state=16, num_gamba=2, decay_rate=1.0)
+model = LilGamba(args).to(DEVICE)
 
 vocab_size = model.args.vocab_size  # padded vocab size
 

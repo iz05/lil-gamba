@@ -31,7 +31,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from einops import rearrange, repeat
 
-from scans import selective_scan
+from scans import selective_scan_multi
 
 
 @dataclass
@@ -129,10 +129,11 @@ class LilGamba(nn.Module):
         
         if model is None:
             config_data = load_config_hf(pretrained_model_name)
-            model = Mamba(ModelArgs(
+            model = Gamba(GambaArgs(
                 d_model=config_data['d_model'], 
                 n_layer=config_data['n_layer'], 
-                vocab_size=config_data['vocab_size'], 
+                vocab_size=config_data['vocab_size'],
+                num_gamba=config_data['num_gamba'],
             ))
         
         pretrained_dict = load_state_dict_hf(pretrained_model_name)
@@ -152,7 +153,7 @@ class ResidualBlock(nn.Module):
         """Simple block wrapping Mamba block with normalization and residual connection."""
         super().__init__()
         self.args = args
-        self.mixer = MambaBlock(args)
+        self.mixer = GambaBlock(args)
         self.norm = RMSNorm(args.d_model)
         
     def forward(self, x):
@@ -178,8 +179,8 @@ class ResidualBlock(nn.Module):
         return self.mixer(self.norm(x)) + x
             
 
-class MambaBlock(nn.Module):
-    def __init__(self, args: ModelArgs):
+class GambaBlock(nn.Module):
+    def __init__(self, args: GambaArgs):
         """A single Mamba block, as described in Figure 3 in Section 3.4 in the Mamba paper [1]."""
         super().__init__()
         self.args = args
@@ -201,8 +202,15 @@ class MambaBlock(nn.Module):
         # dt_proj projects Δ from dt_rank to d_in
         self.dt_proj = nn.Linear(args.dt_rank, args.d_inner, bias=True)
 
-        A = repeat(torch.arange(1, args.d_state + 1), 'n -> d n', d=args.d_inner)
-        self.A_log = nn.Parameter(torch.log(A))
+        A_list = []
+
+        for i in range(args.num_gamba):
+            A = repeat(torch.arange(1, args.d_state + 1), 'n -> d n', d=args.d_inner)
+            A_log = nn.Parameter(torch.log(A))
+            A_list.append(A_log)
+        
+        self.A_list = A_list
+
         self.D = nn.Parameter(torch.ones(args.d_inner))
         self.out_proj = nn.Linear(args.d_inner, args.d_model, bias=args.bias)
         
@@ -252,14 +260,17 @@ class MambaBlock(nn.Module):
             mamba_inner_ref(), https://github.com/state-spaces/mamba/blob/main/mamba_ssm/ops/selective_scan_interface.py#L311
             
         """
-        (d_in, n) = self.A_log.shape
+        A_log = self.A_list[0]
+        (d_in, n) = A_log.shape
 
         # Compute ∆ A B C D, the state space parameters.
         #     A, D are input independent (see Mamba paper [1] Section 3.5.2 "Interpretation of A" for why A isn't selective)
         #     ∆, B, C are input-dependent (this is a key difference between Mamba and the linear time invariant S4,
         #                                  and is why Mamba is called **selective** state spaces)
         
-        A = -torch.exp(self.A_log.float())  # shape (d_in, n)
+        A_weights = [
+            -torch.exp(A_log.float()) for A_log in self.A_list
+        ]
         D = self.D.float()
 
         x_dbl = self.x_proj(x)  # (b, l, dt_rank + 2*n)
@@ -267,7 +278,7 @@ class MambaBlock(nn.Module):
         (delta, B, C) = x_dbl.split(split_size=[self.args.dt_rank, n, n], dim=-1)  # delta: (b, l, dt_rank). B, C: (b, l, n)
         delta = F.softplus(self.dt_proj(delta))  # (b, l, d_in)
         
-        return selective_scan(x, delta, A, B, C, D, mode=self.args.scan_mode)  # This is similar to run_SSM(A, B, C, u) in The Annotated S4 [2]
+        return selective_scan_multi(x, delta, A_weights, B, C, D, decay=self.args.decay_rate)  # This is similar to run_SSM(A, B, C, u) in The Annotated S4 [2]
 
 
 class RMSNorm(nn.Module):
