@@ -31,6 +31,57 @@ def selective_scan(u, dt, A, B, C, D, mode='logcumsumexp'):
             
     return y + u * D
 
+def selective_scan_naive(u, dt, A, B, C, D, eps=1e-8):
+    """
+    Naive selective scan for shapes:
+        u:  (B, L, D)
+        dt: (B, L, D)
+        A:  (D, N)
+        B:  (B, L, N)
+        C:  (B, L, N)
+        D:  (D,)
+    
+    Returns:
+        y: (B, L, D)
+    """
+    B_size, L, D_in = u.shape
+
+    N = A.shape[1]
+
+    h = torch.zeros(B_size, D_in, N, device=u.device, dtype=u.dtype)
+    outputs = []
+
+    # Precompute identity for A_bar clipping
+    I = torch.zeros_like(A)  # Not needed since elementwise
+
+    for t in range(L):
+        u_t = u[:, t, :]   # (B,D)
+        dt_t = dt[:, t, :] # (B,D)
+
+        # ZOH discretization for A
+        deltaA = dt_t.unsqueeze(-1) * A.unsqueeze(0)  # (B,D,N)
+        A_bar = deltaA.exp()                          # (B,D,N)
+
+        # ZOH discretization for B elementwise
+        B_bar = torch.where(
+            deltaA.abs() > eps,
+            ((deltaA.exp() - 1) / deltaA) * B[:, t, :].unsqueeze(1),  # (B,1,N) broadcast over D
+            B[:, t, :].unsqueeze(1)
+        )  # (B,D,N)
+
+        # Input modulation
+        dB_u = u_t.unsqueeze(-1) * B_bar  # (B,D,N)
+
+        # Update hidden state
+        h = h * A_bar + dB_u  # (B,D,N)
+
+        # Compute output
+        y_t = (h * C[:, t, :].unsqueeze(1)).sum(dim=-1) + (u_t * D)  # (B,D)
+
+        outputs.append(y_t)
+
+    return torch.stack(outputs, dim=1)  # (B,L,D)
+
 
 # the mismatch between the cumsum and logcumsumexp modes will grow quickly as sequence length scales up
 if __name__ == "__main__":
