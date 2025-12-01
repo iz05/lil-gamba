@@ -9,6 +9,8 @@ from transformers import AutoTokenizer
 from model import Mamba, ModelArgs
 import time
 import matplotlib.pyplot as plt
+from datasets import load_dataset
+import random
 
 from lilgamba3 import LilGamba, GambaArgs
 
@@ -21,10 +23,6 @@ SEQ_LEN = 128
 EPOCHS = 5
 LR = 1e-3
 SANITY_CHECK_EVERY = 1  # generate text every n epochs
-TEXT_CORPUS = 'miniscule_shakespeare.txt'  # small text dataset
-
-# TODO 1: Get a better text corpus that is still a reasonable size for quick training
-# note: we might use tiny_tiny_shakespeare.txt for the draft since this already takes 2 hours to train
 
 # ---------------------------
 # 2. Dataset
@@ -47,10 +45,10 @@ tokenizer = AutoTokenizer.from_pretrained("gpt2")
 if tokenizer.pad_token is None:
     tokenizer.pad_token = tokenizer.eos_token
 
-# Load corpus
-with open(TEXT_CORPUS, 'r', encoding='utf-8') as f:
-    text_data = f.read()
+dataset_hf = load_dataset("wikitext", "wikitext-103-raw-v1")
+text_data = "\n".join(dataset_hf["train"]["text"][:5000]) # sample 5k lines for quicker training
 
+print("Dataset size (chars):", len(text_data))
 dataset = TextDataset(text_data, tokenizer, SEQ_LEN)
 loader = DataLoader(dataset, batch_size=BATCH_SIZE, shuffle=True)
 
@@ -59,12 +57,16 @@ loader = DataLoader(dataset, batch_size=BATCH_SIZE, shuffle=True)
 # ---------------------------
 # Use padded vocab size from ModelArgs
 
+print("Initializing model...")
+
 # MODEL_NAME = "mamba"
 # args = ModelArgs(d_model=64, n_layer=2, vocab_size=len(tokenizer), d_state=16)
 # model = Mamba(args).to(DEVICE)
 
-MODEL_NAME = "lilgamba"  # or "Mamba"
-args = GambaArgs(d_model=64, n_layer=2, vocab_size=len(tokenizer), d_state=16, num_gamba=2, decay_rate=1.0)
+NUM_GAMBA = 2
+DECAY_RATE = 1.0
+MODEL_NAME = f"lilgamba_{NUM_GAMBA}_{DECAY_RATE}"  # or "Mamba"
+args = GambaArgs(d_model=64, n_layer=2, vocab_size=len(tokenizer), d_state=16, num_gamba=NUM_GAMBA, decay_rate=DECAY_RATE)
 model = LilGamba(args).to(DEVICE)
 
 vocab_size = model.args.vocab_size  # padded vocab size
@@ -101,7 +103,7 @@ for epoch in range(1, EPOCHS+1):
     if epoch % SANITY_CHECK_EVERY == 0:
         model.eval()
         with torch.no_grad():
-            seed_text = "ROMEO:"
+            seed_text = "The history of"
             input_ids = torch.tensor(tokenizer(seed_text)['input_ids'], dtype=torch.long).unsqueeze(0).to(DEVICE)
             for _ in range(100):
                 logits = model(input_ids)
@@ -135,4 +137,4 @@ plt.show()
 # 6. Save model
 # ---------------------------
 os.makedirs("checkpoints", exist_ok=True)
-torch.save({'model_args': model.args, 'model_state_dict': model.state_dict()}, f"checkpoints/{MODEL_NAME}_tiny.pt")
+torch.save({'model_args': model.args, 'model_state_dict': model.state_dict()}, f"checkpoints/{MODEL_NAME}.pt")
