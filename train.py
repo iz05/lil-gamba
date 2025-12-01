@@ -46,7 +46,7 @@ if tokenizer.pad_token is None:
     tokenizer.pad_token = tokenizer.eos_token
 
 dataset_hf = load_dataset("wikitext", "wikitext-103-raw-v1")
-text_data = "\n".join(dataset_hf["train"]["text"][:5000]) # sample 5k lines for quicker training
+text_data = "\n".join(dataset_hf["train"]["text"][:250]) # sample 250 lines for quicker training
 
 print("Dataset size (chars):", len(text_data))
 dataset = TextDataset(text_data, tokenizer, SEQ_LEN)
@@ -63,7 +63,7 @@ print("Initializing model...")
 # args = ModelArgs(d_model=64, n_layer=2, vocab_size=len(tokenizer), d_state=16)
 # model = Mamba(args).to(DEVICE)
 
-NUM_GAMBA = 4
+NUM_GAMBA = 8
 DECAY_RATE = 1.0
 MODEL_NAME = f"lilgamba_{NUM_GAMBA}_{DECAY_RATE}"  # or "Mamba"
 args = GambaArgs(d_model=64, n_layer=2, vocab_size=len(tokenizer), d_state=16, num_gamba=NUM_GAMBA, decay_rate=DECAY_RATE)
