@@ -20,7 +20,7 @@ from lilgamba3 import LilGamba, GambaArgs
 DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
 BATCH_SIZE = 8
 SEQ_LEN = 128
-EPOCHS = 5
+EPOCHS = 10
 LR = 1e-3
 SANITY_CHECK_EVERY = 1  # generate text every n epochs
 
@@ -46,7 +46,7 @@ if tokenizer.pad_token is None:
     tokenizer.pad_token = tokenizer.eos_token
 
 dataset_hf = load_dataset("wikitext", "wikitext-103-raw-v1")
-text_data = "\n".join(dataset_hf["train"]["text"][:5000]) # sample 5k lines for quicker training
+text_data = "\n".join(dataset_hf["train"]["text"][:500]) # sample 250 lines for quicker training
 
 print("Dataset size (chars):", len(text_data))
 dataset = TextDataset(text_data, tokenizer, SEQ_LEN)
@@ -63,10 +63,10 @@ print("Initializing model...")
 # args = ModelArgs(d_model=64, n_layer=2, vocab_size=len(tokenizer), d_state=16)
 # model = Mamba(args).to(DEVICE)
 
-NUM_GAMBA = 4
-DECAY_RATE = 1.0
-MODEL_NAME = f"lilgamba_{NUM_GAMBA}_{DECAY_RATE}"  # or "Mamba"
-args = GambaArgs(d_model=64, n_layer=2, vocab_size=len(tokenizer), d_state=16, num_gamba=NUM_GAMBA, decay_rate=DECAY_RATE)
+NUM_GAMBA=8
+DECAY_RATE=1.0
+MODEL_NAME = f"lilgamba_{NUM_GAMBA}_{DECAY_RATE}_long"  # or "Mamba"
+args = GambaArgs(d_model=64, n_layer=2, vocab_size=len(tokenizer), d_state=128, num_gamba=NUM_GAMBA, decay_rate=DECAY_RATE)
 model = LilGamba(args).to(DEVICE)
 
 vocab_size = model.args.vocab_size  # padded vocab size
